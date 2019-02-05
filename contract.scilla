@@ -21,6 +21,7 @@ let one_msg =
       let nil_msg = Nil {Message} in
       Cons {Message} msg nil_msg
 
+
 let for_dividendes_calc =
     fun(zilAmount : Uint128) =>
     let dividendesAmount = builtin mul zilAmount dividendsCosts in
@@ -28,7 +29,7 @@ let for_dividendes_calc =
             forDividendes
 
 
-let tokenPrice = 
+let token_price = 
     fun (balance     : Uint128) =>
     fun (totalSupply : Uint128) =>
     let val = builtin lt balance tokenPriceInit in
@@ -109,6 +110,23 @@ let tokens_for_withdraw =
             end
 
 
+let get_interest = 
+    fun (customer    : ByStr20) => 
+    fun (bookKeeper  : Map ByStr20 Int256) =>
+        let customer_interest = builtin get bookKeeper customer in
+            match customer_interest with
+                | Some v => v
+                | None => Int256 0
+            end
+
+let accumulated_interest = 
+    fun (currentBlock : Int256) => 
+    fun (customer     : ByStr20) => 
+    fun (bookKeeper   : Map ByStr20 Int256) =>
+        let interest = get_interest customer bookKeeper in
+            interest
+
+
 
 contract ZRCPaymed
 ()
@@ -121,7 +139,11 @@ field dividendes       : Uint128 = Uint128 0
 
 (* maping balance from address *)
 field balances : Map ByStr20 Uint128 =
-  let m = Emp ByStr20 Uint128 in m
+    let m = Emp ByStr20 Uint128 in m
+  
+(* maping dividendes from address *)
+field bookKeeper : Map ByStr20 BNum =
+    let m = Emp ByStr20 BNum in m
 
 
 (***************************************************)
@@ -161,37 +183,43 @@ transition getTokenPrice()
     contract_balance <- _balance;
     total_supply <- totalSupply;
     
-    tokenPrice = tokenPrice contract_balance total_supply;
+    _token_price = token_price contract_balance total_supply;
 
     msg = {
         _tag       : "TokenPrice";
         _recipient : _sender;
         _amount    : Uint128 0;
-        tokenPrice : tokenPrice
+        tokenPrice : _token_price
     };
     msgs = one_msg msg;
     send msgs
 end
 
+transition DividendesOf(owner : ByStr20)
+end
+
 
 transition Buy()
     tokens_balances <- balances;
+    book_keeper <- bookKeeper;
     contract_balance <- _balance;
     total_supply <- totalSupply;
     dividendes_all <- dividendes;
     zil_amount = _amount;
+    blk <- & BLOCKNUMBER;
     
     for_dividendes = for_dividendes_calc zil_amount;
-    tokenPrice = tokenPrice contract_balance total_supply;
+    _token_price = token_price contract_balance total_supply;
     zil_amount = builtin sub zil_amount for_dividendes;
     
-    tokensAmount = zil_to_tokens zil_amount tokenPrice;
+    tokensAmount = zil_to_tokens zil_amount _token_price;
     new_balances = builtin put tokens_balances _sender tokensAmount;
+    new_book_keeper = builtin put book_keeper _sender blk;
     
     new_total_supply = total_supply_add tokensAmount total_supply;
     new_dividendes = builtin add dividendes_all for_dividendes;
     
-    excess_funds = return_excess_funds zil_amount tokensAmount tokenPrice;
+    excess_funds = return_excess_funds zil_amount tokensAmount _token_price;
     
     accept;
     
@@ -229,7 +257,7 @@ transition Withdraw(tokensAmount : Uint128)
     
     tokens_owner = customer_balance _sender tokens_balances;
     
-    tokenPrice = tokenPrice
+    _token_price = token_price
                  contract_balance
                  total_supply;
     
@@ -239,7 +267,7 @@ transition Withdraw(tokensAmount : Uint128)
                    tokens_balances;
     
     zil_amount = tokens_to_zil
-                 tokenPrice
+                 _token_price
                  tokens
                  contract_balance;
                  
@@ -274,5 +302,8 @@ transition Withdraw(tokensAmount : Uint128)
     event e;
     send msgs
 end
+
+
+
 
 
