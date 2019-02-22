@@ -1,4 +1,5 @@
 (* sample contract *)
+scilla_version 0
 
 library ZRCLib
 
@@ -112,17 +113,17 @@ let tokens_for_withdraw =
 
 let get_interest = 
     fun (customer    : ByStr20) => 
-    fun (bookKeeper  : Map ByStr20 Int256) =>
+    fun (bookKeeper  : Map ByStr20 BNum) =>
         let customer_interest = builtin get bookKeeper customer in
             match customer_interest with
                 | Some v => v
-                | None => Int256 0
+                | None => BNum 0
             end
 
 let accumulated_interest = 
-    fun (currentBlock : Int256) => 
+    fun (currentBlock : BNum) => 
     fun (customer     : ByStr20) => 
-    fun (bookKeeper   : Map ByStr20 Int256) =>
+    fun (bookKeeper   : Map ByStr20 BNum) =>
         let interest = get_interest customer bookKeeper in
             interest
 
@@ -154,6 +155,21 @@ transition BalanceOf (tokenOwner : ByStr20)
     val = customer_balance tokenOwner bl;
     msg = {
         _tag       : "BalanceOf";
+        _recipient : _sender;
+        _amount    : Uint128 0;
+        balance    : val
+    };
+    msgs = one_msg msg;
+    send msgs
+end
+
+
+transition DividendsOf (tokenOwner : ByStr20)
+(*    blk <- & BLOCKNUMBER;*)
+    book_keeper <- bookKeeper;
+    val = get_interest tokenOwner book_keeper;
+    msg = {
+        _tag       : "DividendsOf";
         _recipient : _sender;
         _amount    : Uint128 0;
         balance    : val
