@@ -125,7 +125,8 @@ let accumulated_interest =
     fun (customer     : ByStr20) => 
     fun (bookKeeper   : Map ByStr20 BNum) =>
         let interest = get_interest customer bookKeeper in
-            interest
+        let value = builtin bsub currentBlock interest in
+            value
 
 
 
@@ -165,9 +166,9 @@ end
 
 
 transition DividendsOf (tokenOwner : ByStr20)
-(*    blk <- & BLOCKNUMBER;*)
+    blk <- & BLOCKNUMBER;
     book_keeper <- bookKeeper;
-    val = get_interest tokenOwner book_keeper;
+    val = accumulated_interest blk tokenOwner book_keeper;
     msg = {
         _tag       : "DividendsOf";
         _recipient : _sender;
@@ -318,8 +319,3 @@ transition Withdraw(tokensAmount : Uint128)
     event e;
     send msgs
 end
-
-
-
-
-
